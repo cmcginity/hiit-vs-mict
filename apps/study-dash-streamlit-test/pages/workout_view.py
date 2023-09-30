@@ -18,15 +18,43 @@ while not pchk.name == 'hiit-vs-mict' or chk >= 10:
 proot = pchk.parent
 pdata = os.path.join(proot, 'data')
 pdata_myphd = os.path.join(pdata, 'myphd')
+pdata_fitbit = os.path.join(pdata_myphd,'_processed','sourcetype_device','WearableFitbit-Fitbit')
 ptest = os.path.join(pdata_myphd,'_processed','sourcetype_device','WearableFitbit-Fitbit','006_qtz1b13893369732763681_hr_WearableFitbit_Fitbit.csv')
+
+
+            
 
 
 ### Functions and Parameters
 @st.cache_resource
 def load_data(path):
     df = pd.read_csv(path)
-    df = df[df['Value'] >= df['target_hr_45']]
+    df = df[df['Value'] >= 0.8 * df['target_hr_45']]
     return df
+
+@st.cache_data
+def get_dfmetadata(path_to_data):
+    dfmetadata = pd.DataFrame(columns=['ppt_id', 'myphd_id', 'datatype', 'sourcetype', 'device', 'fname'])
+    for subdir, dirs, files in os.walk(pdata_fitbit):
+        for f in files:
+            if f.startswith("0"):
+                meta = f.split("_")
+
+                # fpath = os.path.join(subdir, f)
+                # df = pd.read_csv(fpath)
+                # df = df[df['Value'] >= df['target_hr_45']]
+
+                metadata = {
+                    'ppt_id': meta[0],
+                    'myphd_id': meta[1],
+                    'datatype': meta[2],
+                    'sourcetype': meta[3],
+                    'device': meta[4],
+                    'fname': f
+                    # 'df': df
+                }
+                dfmetadata = dfmetadata.append(metadata, ignore_index=True)
+    return dfmetadata
 
 @st.cache_data
 def split_dataframe_by_time_gap(df, time_field='_time', gap=pd.Timedelta(minutes=5)):
@@ -41,7 +69,10 @@ def split_dataframe_by_time_gap(df, time_field='_time', gap=pd.Timedelta(minutes
     Returns:
     - List[pd.DataFrame]: A list of dataframes for separate events.
     """
-
+    # If df is empty, return an empty list
+    if df.empty:
+        return []
+    
     # Ensure the time field is in datetime format
     df[time_field] = pd.to_datetime(df[time_field])
 
@@ -61,29 +92,101 @@ def split_dataframe_by_time_gap(df, time_field='_time', gap=pd.Timedelta(minutes
         
     return dataframes
 
+def enrollment_status(esnum):
+    esnum = str(esnum)
+    enrollcode = {
+        '1': 'Prescreened',
+        '2': 'Screened',
+        '3': 'Qualified',
+        '4': 'Ongoing',
+        '5': 'Completed',
+        '6': 'Withdrawn',
+        '7': 'Lost',
+        '8': 'Unconsenting'
+    }
+    enrollcode2 = {
+        '1': '👋Prescreened',
+        '2': '🔎Screened',
+        '3': '👍Qualified',
+        '4': '🏃‍♀️Ongoing',
+        '5': '🏅Completed',
+        '6': '❤️‍🩹Withdrawn',
+        '7': '👻Lost',
+        '8': '🛑Unconsenting'
+    }
+    return enrollcode2[esnum]
 
-### Load data
-dfwo = load_data(ptest)
-# dfwo = df[df['Value'] >= df['target_hr_45']]
+def rand_group(rgnum):
+    rgnum = str(rgnum)
+    groupcode = {
+        '1': 'HIIT',
+        '2': 'MICT',
+        '3': 'Control'
+    }
+    groupcode2 = {
+        '1': '🏃‍♂️ HIIT',
+        '2': '🚶‍♂️ MICT',
+        '3': '🧍‍♂️ CTL'
+    }
+    groupcode3 = {
+        '1': '⚡ HIIT',
+        '2': '🔥 MICT',
+        '3': '❄ CTL'
+    }
+    return groupcode3[rgnum]
 
-### Identify workouts
-dfwos = split_dataframe_by_time_gap(dfwo,'_time',gap=pd.Timedelta(minutes=5))
+cohort1 = '🏃‍♂️🚶‍♂️🧍‍♂️'
+cohort2 = '❤️🧡💙'
 
-ppt_id = dfwo["ppt_id"].apply(lambda x: f"{x:03}").iloc[0]
+
+
+
 
 
 
 ### ### ### ### ### ### Dashboard ### ### ### ### ### ###
-st.title(f'🏃‍♂️ HIIT-vs-MICT Project 🏃‍♀️')
+# st.title(f'🏃‍♂️ HIIT-vs-MICT Project 🏃‍♀️')
+st.markdown(f'# Workout View 🏃‍♂️🔬👩‍🔬')
 # st.markdown(f'path root: {proot}')
 # st.markdown(f'path pchk: {pchk}')
 # st.markdown(f'path myphd: {pdata_myphd}') 
 # st.markdown(f'path file absolute: {pfileabs}') 
 # st.write('Here\'s some text and stuff:')
-st.markdown(f'## Participant: {ppt_id}')
 
-st.metric(label='🏃‍♂️🏃‍♀️Workouts',value=len(dfwos),delta=None)
+### Load metadata
+dfmetadata = get_dfmetadata(pdata_fitbit)
+ppt_list = dfmetadata['ppt_id'].sort_values()
+selected_ppt = st.selectbox(
+    'Select a participant to review.',
+    ppt_list
+)
+
+### Load data
+pdata_fitbit_file = os.path.join(pdata_fitbit,dfmetadata['fname'][dfmetadata['ppt_id'] == selected_ppt].iloc[0])
+dfwo = load_data(pdata_fitbit_file)
+# dfwo = df[df['Value'] >= df['target_hr_45']]
+
+### Identify workouts
+dfwos = split_dataframe_by_time_gap(dfwo,'_time',gap=pd.Timedelta(minutes=5))
+
+# ppt_id = dfwo["ppt_id"].apply(lambda x: f"{x:03}").iloc[0]
+
+
+
+
+
+
+
+st.markdown(f'## Participant: {selected_ppt}')
+col_ppt1, col_ppt2, col_ppt3 = st.columns(3)
+
+col_ppt1.metric(label='🏃‍♂️🏃‍♀️Workouts',value=len(dfwos),delta=None)
+col_ppt2.metric('🎟 Status',enrollment_status(dfwo['enrollment_status'].iloc[0]),None)
+col_ppt3.metric(label=f'{cohort1} Cohort',value=rand_group(dfwo['randomization_group'].iloc[0]),delta=None)
 # Slider to select the index
+if len(dfwos) <= 0:
+    st.markdown('## No qualifying workouts! 💩')
+    st.stop()
 selected_index = st.slider("Select Workout:", 0, len(dfwos) - 1)
 dfselected = dfwos[selected_index]
 
@@ -95,6 +198,8 @@ dow_a = dfselected['dow_abbr'].iloc[0]
 
 hr_min = dfselected['Value'].min()
 hr_max = dfselected['Value'].max()
+
+
 
 col11, col12, col13 = st.columns(3)
 # col12.metric("⏰ Start", dfselected['_time'].min().strftime('%Y-%m-%d %H:%M:%S'), None)
@@ -113,6 +218,7 @@ col21.metric(f":stopwatch: Duration", f"{dur_wo_min1} min")
 col22.metric(':green_heart: $HR_{min}$(bpm)', f'{hr_min}', None)
 col23.metric('❤️‍🔥 $HR_{max}$(bpm)', hr_max, None)
 
+
 st.line_chart(dfselected[['_time','Value', 'target_hr_70', 'target_hr_90']],
               x='_time',
               y=['Value', 'target_hr_70', 'target_hr_90'],
@@ -124,4 +230,4 @@ st.line_chart(dfselected[['_time','Value', 'target_hr_70', 'target_hr_90']],
             #   color=['#007BFF', '#FFA500', '#FF4136'])
             #   ["95e1d3","519872","fce38a","f38181","035e7b"]
             
-st.write(dfwo.head(100))
+st.write(dfselected.head(100))
