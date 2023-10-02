@@ -34,7 +34,11 @@ def load_data(path):
 
 @st.cache_data
 def get_dfmetadata(path_to_data):
-    dfmetadata = pd.DataFrame(columns=['ppt_id', 'myphd_id', 'datatype', 'sourcetype', 'device', 'fname'])
+    dfmetadata_list = []
+    # dfmetadata = pd.DataFrame(columns=['ppt_id', 'myphd_id', 'datatype', 'sourcetype', 'device', 'fname'])
+    # st.write(f'dfmetadata {dfmetadata}')
+    # st.write(f'pandas {pd.__version__}')
+    # st.write(f'streamlit {st.__version__}')
     for subdir, dirs, files in os.walk(pdata_fitbit):
         for f in files:
             if f.startswith("0"):
@@ -53,7 +57,8 @@ def get_dfmetadata(path_to_data):
                     'fname': f
                     # 'df': df
                 }
-                dfmetadata = dfmetadata.append(metadata, ignore_index=True)
+                dfmetadata_list.append(metadata)
+    dfmetadata = pd.DataFrame(dfmetadata_list)
     return dfmetadata
 
 @st.cache_data
@@ -172,11 +177,6 @@ dfwos = split_dataframe_by_time_gap(dfwo,'_time',gap=pd.Timedelta(minutes=5))
 # ppt_id = dfwo["ppt_id"].apply(lambda x: f"{x:03}").iloc[0]
 
 
-
-
-
-
-
 st.markdown(f'## Participant: {selected_ppt}')
 col_ppt1, col_ppt2, col_ppt3 = st.columns(3)
 
@@ -198,7 +198,6 @@ dow_a = dfselected['dow_abbr'].iloc[0]
 
 hr_min = dfselected['Value'].min()
 hr_max = dfselected['Value'].max()
-
 
 
 col11, col12, col13 = st.columns(3)

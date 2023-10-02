@@ -1,4 +1,4 @@
-#!/Users/curtismcginity/stanford/research/proj/HIITvsMICT/dev/hiit-vs-mict/apps/study-dash-streamlit-test/.venv/bin/python
+#!/Users/curtismcginity/stanford/research/proj/HIITvsMICT/dev/hiit-vs-mict/apps/study-dash-streamlit-test/.venv/bin/python3.10
 # -*- coding: utf-8 -*-
 import re
 import sys
