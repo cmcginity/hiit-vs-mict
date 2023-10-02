@@ -1,0 +1,21 @@
+# Use the specified Python version
+FROM python:3.10.12-slim
+
+# Set the working directory in the container to 'apps'
+WORKDIR /apps
+
+# Copy the content of the local apps directory to the working directory inside the container
+COPY apps/ .
+
+# Install the dependencies for each app using pip
+
+# For study-dash-streamlit-test app
+RUN pip install --no-cache-dir -r study-dash-streamlit-test/requirements.txt
+
+# For study-dash app (assuming it has its requirements.txt)
+# RUN pip install --no-cache-dir -r study-dash/requirements.txt
+
+# You'd repeat the above line for each app's requirements
+
+# Command to run the main Streamlit app
+CMD ["streamlit", "run", "study-dash-streamlit-test/pages/study_overview.py"]
