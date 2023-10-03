@@ -32,6 +32,15 @@ jobs:
         docker build -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/study-dashboard .
         docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/study-dashboard
 
+    - name: Ensure Cloud Run API is enabled
+      run: |
+        if gcloud services list --enabled --filter="config.name:run.googleapis.com" --project=${{ secrets.GCP_PROJECT_ID }} | grep 'run.googleapis.com'; then
+            echo "Cloud Run API is enabled."
+        else
+            echo "Cloud Run API is not enabled. Enabling now..."
+            gcloud services enable run.googleapis.com --project=${{ secrets.GCP_PROJECT_ID }}
+        fi
+
     - name: Deploy to Cloud Run
       run: |
         gcloud run deploy study-dashboard --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/study-dashboard --platform managed --region us-west1
