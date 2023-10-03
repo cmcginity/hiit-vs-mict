@@ -1,6 +1,7 @@
 ### Imports and environment
 # Imports
 import os
+import io
 from pathlib import Path
 import streamlit as st
 import pandas as pd
@@ -8,6 +9,7 @@ import numpy as np
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+from googleapiclient.http import MediaIoBaseDownload
 
 # Environment
 pfileabs = Path(__file__).resolve()
@@ -20,7 +22,7 @@ while not pchk.name == 'hiit-vs-mict' or chk >= 10:
 proot = pchk.parent
 pdata = os.path.join(proot, 'data')
 pdata_myphd = os.path.join(pdata, 'myphd')
-pdata_fitbit = os.path.join(pdata_myphd,'_processed','sourcetype_device','WearableFitbit-Fitbit')
+# pdata_fitbit = os.path.join(pdata_myphd,'_processed','sourcetype_device','WearableFitbit-Fitbit')
 ptest = os.path.join(pdata_myphd,'_processed','sourcetype_device','WearableFitbit-Fitbit','006_qtz1b13893369732763681_hr_WearableFitbit_Fitbit.csv')
 
 
@@ -34,7 +36,56 @@ def setup_drive():
 
 drive_service = setup_drive()
             
+def get_file_id_from_name(drive_service, filename, parent_id):
+    results = drive_service.files().list(
+        corpora='drive',
+        driveId=st.secrets["gdrive_id_root"],
+        q=f"name='{filename}' and '{parent_id}' in parents",
+        includeItemsFromAllDrives=True,
+        supportsAllDrives=True
+    ).execute()
+    files = results.get('files', [])
+    if not files:
+        raise Exception(f"File {filename} not found!")
+    return files[0]['id']
 
+def load_data_from_drive(drive_service, file_id):
+    request = drive_service.files().get_media(fileId=file_id)
+    io_buffer = io.BytesIO()
+    downloader = MediaIoBaseDownload(io_buffer, request)
+    done = False
+    while done is False:
+        status, done = downloader.next_chunk()
+    io_buffer.seek(0)
+    df = pd.read_csv(io_buffer)
+    df = df[df['Value'] >= 0.8 * df['target_hr_45']]
+    return df
+
+@st.cache_resource
+def preload_data_from_drive(_drive_service, parent_id):
+    preloaded_data = {}
+    
+    # Get list of files in the specified folder
+    response = drive_service.files().list(corpora='drive', 
+                                          driveId=st.secrets["gdrive_id_root"],
+                                          q=f"'{parent_id}' in parents",
+                                          includeItemsFromAllDrives=True, 
+                                          supportsAllDrives=True).execute()
+    
+    # Iterate over each file and load its data
+    for file in response.get('files', []):
+        file_id = file['id']
+        df = load_data_from_drive(drive_service, file_id)
+        preloaded_data[file_id] = df
+    
+    return preloaded_data
+
+# Use the preload function to load data
+preloaded_data = preload_data_from_drive(drive_service, st.secrets["gdrive_id_myphd__processed_hr_fitbit"])
+
+@st.cache_data
+def get_data_from_preloaded(file_id):
+    return preloaded_data.get(file_id)
 
 ### Functions and Parameters
 @st.cache_resource
@@ -219,7 +270,7 @@ pathfitbit = st.secrets["gdrive_id_myphd__processed_hr_fitbit"]
 # st.write(f'secret: {pathfitbit}')
 dfmetadata = get_dfmetadata(drive_service, pathfitbit)
 # dfmetadata = get_dfmetadata(pdata_fitbit)
-print(dfmetadata)
+# print(dfmetadata)
 ppt_list = dfmetadata['ppt_id'].sort_values()
 selected_ppt = st.selectbox(
     'Select a participant to review.',
@@ -227,8 +278,11 @@ selected_ppt = st.selectbox(
 )
 
 ### Load data
-pdata_fitbit_file = os.path.join(pdata_fitbit,dfmetadata['fname'][dfmetadata['ppt_id'] == selected_ppt].iloc[0])
-dfwo = load_data(pdata_fitbit_file)
+pdata_fitbit_file_id = get_file_id_from_name(drive_service,dfmetadata['fname'][dfmetadata['ppt_id'] == selected_ppt].iloc[0],pathfitbit)
+# pdata_fitbit_file = os.path.join(pdata_fitbit,dfmetadata['fname'][dfmetadata['ppt_id'] == selected_ppt].iloc[0])
+# st.write(f'pdata_fitbit: {pdata_fitbit_file_id}')
+dfwo = get_data_from_preloaded(pdata_fitbit_file_id)
+# dfwo = load_data(pdata_fitbit_file)
 # dfwo = df[df['Value'] >= df['target_hr_45']]
 
 ### Identify workouts
