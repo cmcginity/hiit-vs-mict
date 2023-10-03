@@ -17,5 +17,11 @@ RUN pip install --no-cache-dir -r study-dash-streamlit-test/requirements.txt
 
 # You'd repeat the above line for each app's requirements
 
+# EXPOSE 8501
+
+# HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health
+
 # Command to run the main Streamlit app
-CMD ["streamlit", "run", "study-dash-streamlit-test/pages/study_overview.py"]
+# CMD ["streamlit", "run", "--server.port=$PORT", "study-dash-streamlit-test/study_overview.py"]
+CMD streamlit run --server.port=8501 study-dash-streamlit-test/study_overview.py
+# ENTRYPOINT ["streamlit", "run", "study-dash-streamlit-test/study_overview.py", "--server.port=8501", "--server.address=0.0.0.0"]
