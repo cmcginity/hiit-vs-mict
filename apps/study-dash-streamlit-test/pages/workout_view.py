@@ -5,7 +5,9 @@ from pathlib import Path
 import streamlit as st
 import pandas as pd
 import numpy as np
-import datetime
+from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 
 # Environment
 pfileabs = Path(__file__).resolve()
@@ -22,6 +24,16 @@ pdata_fitbit = os.path.join(pdata_myphd,'_processed','sourcetype_device','Wearab
 ptest = os.path.join(pdata_myphd,'_processed','sourcetype_device','WearableFitbit-Fitbit','006_qtz1b13893369732763681_hr_WearableFitbit_Fitbit.csv')
 
 
+# Google Drive API Initialization
+def setup_drive():
+    SERVICE_ACCOUNT_FILE = '/Users/curtismcginity/Downloads/hiit-vs-mict-50dbc00f450b.json'
+    SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
+
+    creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+    service = build('drive', 'v3', credentials=creds)
+    return service
+
+drive_service = setup_drive()
             
 
 
@@ -33,33 +45,70 @@ def load_data(path):
     return df
 
 @st.cache_data
-def get_dfmetadata(path_to_data):
+def get_dfmetadata(_drive_service, folder_id=None):
+    pathfitbit = st.secrets["gdrive_id_myphd__processed_hr_fitbit"]
     dfmetadata_list = []
-    # dfmetadata = pd.DataFrame(columns=['ppt_id', 'myphd_id', 'datatype', 'sourcetype', 'device', 'fname'])
-    # st.write(f'dfmetadata {dfmetadata}')
-    # st.write(f'pandas {pd.__version__}')
-    # st.write(f'streamlit {st.__version__}')
-    for subdir, dirs, files in os.walk(pdata_fitbit):
-        for f in files:
-            if f.startswith("0"):
-                meta = f.split("_")
 
-                # fpath = os.path.join(subdir, f)
-                # df = pd.read_csv(fpath)
-                # df = df[df['Value'] >= df['target_hr_45']]
-
+    try:
+        # If folder_id is provided, list files from that folder. Otherwise, list from entire Drive.
+        if folder_id:
+            response = drive_service.files().list(corpora='drive', 
+                                                driveId=st.secrets["gdrive_id_root"],
+                                                q=f"'{pathfitbit}' in parents",
+                                                includeItemsFromAllDrives=True, 
+                                                supportsAllDrives=True).execute()
+        else:
+            response = drive_service.files().list(corpora='drive', 
+                                                driveId=st.secrets["gdrive_id_root"],
+                                                includeItemsFromAllDrives=True, 
+                                                supportsAllDrives=True).execute()
+        
+        for file in response.get('files', []):
+            fname = file.get('name')
+            if fname.startswith("0"):
+                meta = fname.split("_")
                 metadata = {
                     'ppt_id': meta[0],
                     'myphd_id': meta[1],
                     'datatype': meta[2],
                     'sourcetype': meta[3],
                     'device': meta[4],
-                    'fname': f
-                    # 'df': df
+                    'fname': fname
                 }
                 dfmetadata_list.append(metadata)
+                
+    except HttpError as error:
+        print(f"An error occurred: {error}")
+
     dfmetadata = pd.DataFrame(dfmetadata_list)
     return dfmetadata
+# def get_dfmetadata(path_to_data):
+#     dfmetadata_list = []
+#     # dfmetadata = pd.DataFrame(columns=['ppt_id', 'myphd_id', 'datatype', 'sourcetype', 'device', 'fname'])
+#     # st.write(f'dfmetadata {dfmetadata}')
+#     # st.write(f'pandas {pd.__version__}')
+#     # st.write(f'streamlit {st.__version__}')
+#     for subdir, dirs, files in os.walk(pdata_fitbit):
+#         for f in files:
+#             if f.startswith("0"):
+#                 meta = f.split("_")
+
+#                 # fpath = os.path.join(subdir, f)
+#                 # df = pd.read_csv(fpath)
+#                 # df = df[df['Value'] >= df['target_hr_45']]
+
+#                 metadata = {
+#                     'ppt_id': meta[0],
+#                     'myphd_id': meta[1],
+#                     'datatype': meta[2],
+#                     'sourcetype': meta[3],
+#                     'device': meta[4],
+#                     'fname': f
+#                     # 'df': df
+#                 }
+#                 dfmetadata_list.append(metadata)
+#     dfmetadata = pd.DataFrame(dfmetadata_list)
+#     return dfmetadata
 
 @st.cache_data
 def split_dataframe_by_time_gap(df, time_field='_time', gap=pd.Timedelta(minutes=5)):
@@ -159,7 +208,19 @@ st.markdown(f'# Workout View 🏃‍♂️🔬👩‍🔬')
 # st.write('Here\'s some text and stuff:')
 
 ### Load metadata
-dfmetadata = get_dfmetadata(pdata_fitbit)
+pathfitbit = st.secrets["gdrive_id_myphd__processed_hr_fitbit"]
+# qstring = f"'{pathfitbit}' in parents"
+# fitbitfiles = drive_service.files().list(corpora='drive', 
+#                                       driveId=st.secrets["gdrive_id_root"],
+#                                       q=qstring,
+#                                       includeItemsFromAllDrives=True, 
+#                                       supportsAllDrives=True).execute().get('files',[])
+# st.write(f'q string: {qstring}')
+# st.write(f'drive service: {fitbitfiles}')
+# st.write(f'secret: {pathfitbit}')
+dfmetadata = get_dfmetadata(drive_service, pathfitbit)
+# dfmetadata = get_dfmetadata(pdata_fitbit)
+print(dfmetadata)
 ppt_list = dfmetadata['ppt_id'].sort_values()
 selected_ppt = st.selectbox(
     'Select a participant to review.',
