@@ -290,3 +290,4 @@ st.line_chart(dfselected[['_time','Value', 'target_hr_70', 'target_hr_90']],
             #   ["95e1d3","519872","fce38a","f38181","035e7b"]
             
 st.write(dfselected.head(100))
+st.write(f'{st.secrets["gdrive_id_root_data"]}')

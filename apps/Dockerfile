@@ -5,7 +5,7 @@ FROM python:3.10.12-slim
 WORKDIR /apps
 
 # Copy the content of the local apps directory to the working directory inside the container
-COPY apps/ .
+COPY . .
 
 # Install the dependencies for each app using pip
 
