@@ -280,7 +280,7 @@ selected_ppt = st.selectbox(
 ### Load data
 pdata_fitbit_file_id = get_file_id_from_name(drive_service,dfmetadata['fname'][dfmetadata['ppt_id'] == selected_ppt].iloc[0],pathfitbit)
 # pdata_fitbit_file = os.path.join(pdata_fitbit,dfmetadata['fname'][dfmetadata['ppt_id'] == selected_ppt].iloc[0])
-# st.write(f'pdata_fitbit: {pdata_fitbit_file_id}')
+# st.write(f'pdata_fitbit: {pdata_fitbit_file_id} d')
 dfwo = get_data_from_preloaded(pdata_fitbit_file_id)
 # dfwo = load_data(pdata_fitbit_file)
 # dfwo = df[df['Value'] >= df['target_hr_45']]
