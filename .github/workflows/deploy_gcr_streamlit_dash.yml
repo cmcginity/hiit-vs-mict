@@ -23,7 +23,7 @@ jobs:
 
     - name: Build Docker Image and Push to GCR
       run: |
-        cd apps/study-dash-streamlit-test
+        cd apps
         docker build -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/study-dashboard .
         docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/study-dashboard
 
