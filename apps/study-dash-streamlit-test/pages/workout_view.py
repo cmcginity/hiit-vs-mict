@@ -331,10 +331,19 @@ col21.metric(f":stopwatch: Duration", f"{dur_wo_min1} min")
 col22.metric(':green_heart: $HR_{min}$(bpm)', f'{hr_min}', None)
 col23.metric('❤️‍🔥 $HR_{max}$(bpm)', hr_max, None)
 
+# plotting
+def get_plot_fields(x):
+    if x == 1:
+        return ['_time', 'Value', 'target_hr_70', 'target_hr_90']
+    elif x == 2:
+        return ['_time', 'Value', 'target_hr_45', 'target_hr_55']
+    else:
+        return ['_time', 'Value']
 
-st.line_chart(dfselected[['_time','Value', 'target_hr_70', 'target_hr_90']],
-              x='_time',
-              y=['Value', 'target_hr_70', 'target_hr_90'],
+plot_fields = get_plot_fields(dfwo['randomization_group'].iloc[0])
+st.line_chart(dfselected[plot_fields],
+              x=plot_fields[0],
+              y=plot_fields[1:],
               color=["#0668C9","#83C9FF","#F92B2C"])
             #   color=["#0668C9","#83C9FF","#F92B2C"])
             #   color=["#FF5722","#FFC3A0","#FF6B6B"])
@@ -344,4 +353,3 @@ st.line_chart(dfselected[['_time','Value', 'target_hr_70', 'target_hr_90']],
             #   ["95e1d3","519872","fce38a","f38181","035e7b"]
             
 st.write(dfselected.head(100))
-st.write(f'{st.secrets["gdrive_id_root_data"]}')
