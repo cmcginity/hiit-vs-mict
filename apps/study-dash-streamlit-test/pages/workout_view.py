@@ -489,7 +489,7 @@ st.line_chart(result,
 dfselectedgps = dfselected.groupby(['ppt_id', 'wk_id', 'wo_id', 'device', pd.Grouper(key='_realtime', freq='5S')]).agg({'value': 'median','target_hr_70': 'max','target_hr_90': 'max'})
 # plt.figure(figsize=(12, 6))
 dev_color = {
-    'fitbit':   "#F99417",#"#EA5455",#"#F92B2C",
+    'fitbit':   "#F99417", #"#EA5455",#"#F92B2C",
     'polar':    "#2E4374" #"#0668C9"
 }
 fig, ax = plt.subplots()#gca()  # Get the current axis
