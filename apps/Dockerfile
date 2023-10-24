@@ -7,11 +7,11 @@ WORKDIR $APP_HOME
 # WORKDIR /apps
 
 # Copy the content of the local apps directory to the working directory inside the container
-COPY . ./
+COPY . .
 
 # Expose the port
 # EXPOSE 8501
-EXPOSE 8080
+# EXPOSE 8080
 # Install the dependencies for each app using pip
 # For study-dash-streamlit-test app
 RUN pip3 install -r study-dash-streamlit-test/requirements.txt
@@ -27,6 +27,6 @@ RUN find /usr/local/lib/python3.10/site-packages/streamlit -type f \( -iname \*.
 # HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health
 
 # Command to run the main Streamlit app
-# CMD ["streamlit", "run", "--server.port=$PORT", "study-dash-streamlit-test/study_overview.py"]
+# CMD ["streamlit", "run", "--server.port=$PORT", "--server.address=0.0.0.0", "study-dash-streamlit-test/study_overview.py"]
 CMD streamlit run --server.port=$PORT --browser.serverAddress=0.0.0.0 --server.enableCORS=False --server.enableXsrfProtection False study-dash-streamlit-test/study_overview.py
 # ENTRYPOINT ["streamlit", "run", "study-dash-streamlit-test/study_overview.py", "--server.port=8501", "--server.address=0.0.0.0"]
