@@ -11,6 +11,7 @@ from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseDownload
+import requests
 
 # Environment
 pfileabs = Path(__file__).resolve()
@@ -101,6 +102,48 @@ preloaded_data = preload_data_from_drive(drive_service, st.secrets["gdrive_id_wo
 @st.cache_data
 def get_data_from_preloaded(file_id):
     return preloaded_data.get(file_id)
+
+### REDCap data extraction
+def read_redcap_report(api_url, api_key, report_id):
+    """
+    Reads a specific report from REDCap into a pandas DataFrame.
+
+    :param api_url: URL to the REDCap API endpoint.
+    :param api_key: API key for authentication.
+    :param report_id: ID of the report to be fetched.
+    :return: DataFrame containing the report data or None if an error occurs.
+    """
+
+    # Define the payload for the REDCap API request
+    data = {
+        'token': api_key,
+        'content': 'report',
+        'format': 'csv',
+        'report_id': report_id,
+        'rawOrLabel': 'raw',
+        'rawOrLabelHeaders': 'raw',
+        'exportCheckboxLabel': 'false',
+        'returnFormat': 'csv'
+    }
+
+    # Make the POST request to the REDCap API
+    response = requests.post(api_url, data=data)
+
+    # Check if the request was successful
+    if response.status_code != 200:
+        st.error(f"Error fetching data from REDCap: {response.text}")
+        return None
+
+    # Convert the CSV response to a pandas DataFrame
+    try:
+        df = pd.read_csv(io.StringIO(response.text))
+        return df
+    except pd.errors.ParserError:
+        st.error("Error parsing REDCap response as CSV")
+        return None
+
+# xxx = read_redcap_report(st.secrets['redcap']['api_url'],st.secrets['redcap']['api_key_curtis'],st.secrets['redcap']['ppt_meta_master_id'])
+
 
 ### Functions and Parameters
 @st.cache_resource
@@ -263,22 +306,26 @@ def parse_time(df, time_col):
 def get_rc_data(fname):
     fileid = get_file_id_from_name(drive_service,fname,st.secrets["gdrive_id_rc_keys"])
     dfppt = load_data_from_drive_rc(drive_service,fileid)
-    dfppt['ppt_id'] = dfppt['record_id'].apply(lambda x: f'{x:03}')
-    dfppt = dfppt.drop('redcap_event_name',axis=1)
+    dfppt = clean_ppt_df(dfppt)
+    return dfppt
+
+def clean_ppt_df(df):
+    df['ppt_id'] = df['record_id'].apply(lambda x: f'{x:03}')
+    df = df.drop('redcap_event_name',axis=1)
     # dfppt['myphd_date_shift'] = dfppt['myphd_date_shift'].fillna(0)
-    dfppt_str = [
+    df_str = [
         'myphd_id'
     ]
-    dfppt_int = [
+    df_int = [
         'ppt_id',
         'record_id',
         'enrollment_status',
         'randomization_group',
         'myphd_date_shift'
     ]
-    dfppt = clean_int(dfppt,dfppt_int)
-    dfppt = clean_str(dfppt,dfppt_str)
-    return dfppt
+    df = clean_int(df,df_int)
+    df = clean_str(df,df_str)
+    return df
 
 def merge_rc(df,dfppt):
     df = df.merge(dfppt, on='ppt_id', how='left')
@@ -373,7 +420,13 @@ pdata_fitbit_file_id = get_file_id_from_name(drive_service,dfmetadata['fname'][d
 dfwo = get_data_from_preloaded(pdata_fitbit_file_id)
 # dfwo = load_data(pdata_fitbit_file)
 # dfwo = df[df['value'] >= df['target_hr_45']]
-dfppt = get_rc_data('HIITVsEndurance-EvertonEnrollmentAnd_DATA_2023-10-21_2135.csv')
+# dfppt = get_rc_data('HIITVsEndurance-EvertonEnrollmentAnd_DATA_2023-10-21_2135.csv')
+dfppt = read_redcap_report(st.secrets['redcap']['api_url'],st.secrets['redcap']['api_key_curtis'],st.secrets['redcap']['ppt_meta_master_id'])
+
+dfppt = clean_ppt_df(dfppt)
+# st.write(dfppt.dtypes)
+# st.write(dfppt)
+# st.write(dfppt)
 
 ### Merge data
 dfwo['_time'] = pd.to_datetime(dfwo['_time'], format="%Y-%m-%d %H:%M:%S.%f", errors='coerce')
@@ -404,30 +457,6 @@ dfselected['_realtime'] = pd.to_datetime(dfselected['_realtime'])
 # Convert device column to lowercase
 dfselected['device'] = dfselected['device'].str.lower()
 
-# Group by 5-second intervals and the device, then calculate the aggregations
-result = (dfselected
-          .groupby([pd.Grouper(key='_realtime', freq='5S'), 'device'])
-          .agg(value_avg=('value', 'mean'),
-               value_med=('value', 'median'),
-               value_min=('value', 'min'),
-               value_max=('value', 'max'),
-               value_ct=('value', 'size'))
-          ).reset_index()
-result = result.pivot(index='_realtime', columns='device').sort_index(axis=1,level=1)
-# Flatten MultiIndex columns and create column names in {device}_{agg} format
-result.columns = [f'{device}_{agg}' for device, agg in result.columns]
-result.reset_index(inplace=True)  # Resetting the index after the pivot to make _realtime a column again
-col_list = ['_realtime'] + [f'value_med_{col}' for col in dfselected['device'].unique()]
-result = result[col_list]
-result['target_hr_45'] = dfppt[dfppt['ppt_id'] == int(selected_ppt)]['target_hr_45'].iloc[0]
-result['target_hr_55'] = dfppt[dfppt['ppt_id'] == int(selected_ppt)]['target_hr_55'].iloc[0]
-result['target_hr_70'] = dfppt[dfppt['ppt_id'] == int(selected_ppt)]['target_hr_70'].iloc[0]
-result['target_hr_90'] = dfppt[dfppt['ppt_id'] == int(selected_ppt)]['target_hr_90'].iloc[0]
-# result.rename(columns={'value_med_fitbit': 'fitbit','value_med_polar': 'polar'}, inplace=True)
-
-
-# st.write(col_list)
-
 st_wo = dfselected['_realtime'].min()
 et_wo = dfselected['_realtime'].max()
 dur_wo = et_wo - st_wo
@@ -455,7 +484,37 @@ col21.metric(f":stopwatch: Duration", f"{dur_wo_min1} min")
 col22.metric(':green_heart: $HR_{min}$(bpm)', f'{hr_min}', None)
 col23.metric('❤️‍🔥 $HR_{max}$(bpm)', hr_max, None)
 
-# plotting
+col31, col32, col33= st.columns(3)
+timescale = col31.selectbox(
+    "Timescale:",
+    ["1S","2S","5S","10S"]
+)
+
+### Group by 5-second intervals and the device, then calculate the aggregations
+result = (dfselected
+          .groupby([pd.Grouper(key='_realtime', freq=timescale), 'device'])
+          .agg(value_avg=('value', 'mean'),
+               value_med=('value', 'median'),
+               value_min=('value', 'min'),
+               value_max=('value', 'max'),
+               value_ct=('value', 'size'))
+          ).reset_index()
+result = result.pivot(index='_realtime', columns='device').sort_index(axis=1,level=1)
+# Flatten MultiIndex columns and create column names in {device}_{agg} format
+result.columns = [f'{device}_{agg}' for device, agg in result.columns]
+result.reset_index(inplace=True)  # Resetting the index after the pivot to make _realtime a column again
+col_list = ['_realtime'] + [f'value_med_{col}' for col in dfselected['device'].unique()]
+result = result[col_list]
+result['target_hr_45'] = dfppt[dfppt['ppt_id'] == int(selected_ppt)]['target_hr_45'].iloc[0]
+result['target_hr_55'] = dfppt[dfppt['ppt_id'] == int(selected_ppt)]['target_hr_55'].iloc[0]
+result['target_hr_70'] = dfppt[dfppt['ppt_id'] == int(selected_ppt)]['target_hr_70'].iloc[0]
+result['target_hr_90'] = dfppt[dfppt['ppt_id'] == int(selected_ppt)]['target_hr_90'].iloc[0]
+# result.rename(columns={'value_med_fitbit': 'fitbit','value_med_polar': 'polar'}, inplace=True)
+
+
+# st.write(result)
+
+### Plotting
 def get_plot_fields(x):
     if x == 1:
         return ['_time', 'value', 'target_hr_70', 'target_hr_90']
@@ -472,8 +531,9 @@ def get_target_hr_list(x):
     else:
         return None
 
+randgroup = dfppt[dfppt['ppt_id'] == int(selected_ppt)]['randomization_group'].iloc[0]
 plot_fields = get_plot_fields(dfwo['randomization_group'].iloc[0])
-ylist = col_list[1:]+get_target_hr_list(dfppt[dfppt['ppt_id'] == int(selected_ppt)]['randomization_group'].iloc[0])
+ylist = col_list[1:]+get_target_hr_list(randgroup)
 
 st.line_chart(result,
               x=col_list[0],
@@ -489,15 +549,22 @@ st.line_chart(result,
 dfselectedgps = dfselected.groupby(['ppt_id', 'wk_id', 'wo_id', 'device', pd.Grouper(key='_realtime', freq='5S')]).agg({'value': 'median','target_hr_70': 'max','target_hr_90': 'max'})
 # plt.figure(figsize=(12, 6))
 dev_color = {
-    'fitbit':   "#F99417", #"#EA5455",#"#F92B2C",
-    'polar':    "#2E4374" #"#0668C9"
+    'fitbit':           "#F99417", #"#EA5455",#"#F92B2C",
+    'polar':            "#2E4374", #"#0668C9"
+    'target_hr_45':     "#83C9FF",
+    'target_hr_55':     "#F92B2C",
+    'target_hr_70':     "#83C9FF",
+    'target_hr_90':     "#F92B2C"
 }
 fig, ax = plt.subplots()#gca()  # Get the current axis
 plot_fields = plot_fields[1:]
 devices = dfselected['device'].unique()
 #todo add layer around target_hr_*
-dfselected.plot(x='_realtime', y='target_hr_70', label='target_hr_70', linestyle='-', alpha=0.85, color="#83C9FF", ax=ax)
-dfselected.plot(x='_realtime', y='target_hr_90', label='target_hr_90', linestyle='-', alpha=0.85, color="#F92B2C", ax=ax)
+# dfselected.plot(x='_realtime', y='target_hr_70', label='target_hr_70', linestyle='-', alpha=0.85, color="#83C9FF", ax=ax)
+# dfselected.plot(x='_realtime', y='target_hr_90', label='target_hr_90', linestyle='-', alpha=0.85, color="#F92B2C", ax=ax)
+for yy in get_target_hr_list(randgroup):
+    plotcolor = dev_color.get(yy)
+    dfselected.plot(x='_realtime', y=yy, label=yy, linestyle='-', alpha=0.85, color=dev_color.get(yy), ax=ax)
 for dev in devices:
     # dev = str.lower(dev)
     subset = dfselectedgps.xs(key=dev, level='device', axis=0)  # Extract data for the specific device
