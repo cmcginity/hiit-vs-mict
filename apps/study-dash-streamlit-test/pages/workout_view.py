@@ -37,6 +37,7 @@ def setup_drive():
     return service
 
 drive_service = setup_drive()
+st.write(f'drive service {drive_service}')
             
 def get_file_id_from_name(drive_service, filename, parent_id):
     results = drive_service.files().list(
@@ -75,6 +76,7 @@ def load_data_from_drive_rc(drive_service, file_id):
     # df = df[df['value'] >= 0.8 * df['target_hr_45']]
     return df
 
+st.write("About to fetch")
 @st.cache_resource
 def preload_data_from_drive(_drive_service, parent_id):
     preloaded_data = {}
@@ -85,7 +87,7 @@ def preload_data_from_drive(_drive_service, parent_id):
                                           q=f"'{parent_id}' in parents",
                                           includeItemsFromAllDrives=True, 
                                           supportsAllDrives=True).execute()
-    
+    st.write(f"{response.get('files',[])}")
     # Iterate over each file and load its data
     for file in response.get('files', []):
         if file.get('name').startswith("workout"):
