@@ -1,3 +1,3 @@
 .DS_Store
 .venv/
-apps/study-dash-streamlit-test/.streamlit/
+apps/study-dash-streamlit-test/.streamlit/secrets.toml
