@@ -46,7 +46,6 @@ def get_file_id_from_name(_drive_service, filename, parent_id):
         raise Exception(f"File {filename} not found!")
     return files[0]['id']
 
-@st.cache_data
 def load_data_from_drive(_drive_service, file_id):
     request = _drive_service.files().get_media(fileId=file_id)
     io_buffer = io.BytesIO()
@@ -95,7 +94,7 @@ def preload_data_from_drive(_drive_service, parent_id):
 # Use the preload function to load data
 preloaded_data = preload_data_from_drive(drive_service, st.secrets["gdrive_id_workout"])
 
-@st.cache_data
+# @st.cache_data
 def get_data_from_preloaded(file_id):
     return preloaded_data.get(file_id)
 
@@ -414,7 +413,8 @@ selected_ppt = st.selectbox(
 pdata_fitbit_file_id = get_file_id_from_name(drive_service,dfmetadata['fname'][dfmetadata['ppt_id'] == selected_ppt].iloc[0],pworkout)
 # pdata_fitbit_file = os.path.join(pdata_fitbit,dfmetadata['fname'][dfmetadata['ppt_id'] == selected_ppt].iloc[0])
 # st.write(f'pdata_fitbit: {pdata_fitbit_file_id}')
-dfwo = get_data_from_preloaded(pdata_fitbit_file_id)
+# dfwo = get_data_from_preloaded(pdata_fitbit_file_id)
+dfwo = preloaded_data.get(pdata_fitbit_file_id)
 # dfwo = load_data(pdata_fitbit_file)
 # dfwo = df[df['value'] >= df['target_hr_45']]
 dfppt = read_redcap_report(st.secrets['redcap']['api_url'],st.secrets['redcap']['api_key_curtis'],st.secrets['redcap']['ppt_meta_master_id'])
