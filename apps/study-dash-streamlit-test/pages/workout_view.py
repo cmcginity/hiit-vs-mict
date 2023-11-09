@@ -5,6 +5,7 @@ import io
 from pathlib import Path
 import streamlit as st
 st.write("import")
+st.write(f"root id: {st.secrets['gdrive_id_root']}")
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -37,8 +38,14 @@ def setup_drive():
     service = build('drive', 'v3', credentials=creds)
     return service
 
-drive_service = setup_drive()
-st.write(f'drive service {drive_service}')
+# drive_service = setup_drive()
+# st.write(f'drive service {drive_service}')
+try:
+    drive_service = setup_drive()
+    st.write(f'drive service {drive_service}')
+except Exception as e:
+    st.write(f'Failed to set up drive service: {e}')
+
             
 def get_file_id_from_name(drive_service, filename, parent_id):
     results = drive_service.files().list(
