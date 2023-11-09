@@ -2,10 +2,8 @@
 # Imports
 import os
 import io
-# from pathlib import Path
 import streamlit as st
-st.write("import")
-st.write(f"root id: {st.secrets['gdrive_id_root']}")
+# st.write(f"root id: {st.secrets['gdrive_id_root']}")
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -15,22 +13,10 @@ from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseDownload
 import requests
 
-# Environment
-# pfileabs = Path(__file__).resolve()
-# pchk = pfileabs
-# chk = 0
-# while not pchk.name == 'hiit-vs-mict' or chk >= 10:
-#     pchk = pchk.parent
-#     chk += 1
-
-# proot = pchk.parent
-# pdata = os.path.join(proot, 'data')
-# pdata_myphd = os.path.join(pdata, 'myphd')
-# pdata_fitbit = os.path.join(pdata_myphd,'_processed','sourcetype_device','WearableFitbit-Fitbit')
-# ptest = os.path.join(pdata_myphd,'_processed','sourcetype_device','WearableFitbit-Fitbit','006_qtz1b13893369732763681_hr_WearableFitbit_Fitbit.csv')
 
 
 # Google Drive API Initialization
+@st.cache_resource
 def setup_drive():
     SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
 
@@ -38,18 +24,17 @@ def setup_drive():
     service = build('drive', 'v3', credentials=creds)
     return service
 
-# drive_service = setup_drive()
-# st.write(f'drive service {drive_service}')
-st.write("About to setup drive")
-try:
-    drive_service = setup_drive()
-    st.write(f'drive service {drive_service}')
-except Exception as e:
-    st.write(f'Failed to set up drive service: {e}')
+drive_service = setup_drive()
+# st.write("About to setup drive")
+# try:
+#     drive_service = setup_drive()
+#     st.write(f'drive service {drive_service}')
+# except Exception as e:
+#     st.write(f'Failed to set up drive service: {e}')
 
-            
-def get_file_id_from_name(drive_service, filename, parent_id):
-    results = drive_service.files().list(
+@st.cache_data 
+def get_file_id_from_name(_drive_service, filename, parent_id):
+    results = _drive_service.files().list(
         corpora='drive',
         driveId=st.secrets["gdrive_id_root"],
         q=f"name='{filename}' and '{parent_id}' in parents",
@@ -61,8 +46,9 @@ def get_file_id_from_name(drive_service, filename, parent_id):
         raise Exception(f"File {filename} not found!")
     return files[0]['id']
 
-def load_data_from_drive(drive_service, file_id):
-    request = drive_service.files().get_media(fileId=file_id)
+@st.cache_data
+def load_data_from_drive(_drive_service, file_id):
+    request = _drive_service.files().get_media(fileId=file_id)
     io_buffer = io.BytesIO()
     downloader = MediaIoBaseDownload(io_buffer, request)
     done = False
@@ -85,8 +71,8 @@ def load_data_from_drive(drive_service, file_id):
 #     # df = df[df['value'] >= 0.8 * df['target_hr_45']]
 #     return df
 
-st.write("About to fetch")
-@st.cache_resource
+# st.write("About to fetch")
+@st.cache_data
 def preload_data_from_drive(_drive_service, parent_id):
     preloaded_data = {}
     
@@ -96,7 +82,6 @@ def preload_data_from_drive(_drive_service, parent_id):
                                           q=f"'{parent_id}' in parents",
                                           includeItemsFromAllDrives=True, 
                                           supportsAllDrives=True).execute()
-    st.write(f"{response.get('files',[])}")
     # Iterate over each file and load its data
     for file in response.get('files', []):
         if file.get('name').startswith("workout"):
@@ -115,6 +100,7 @@ def get_data_from_preloaded(file_id):
     return preloaded_data.get(file_id)
 
 ### REDCap data extraction
+@st.cache_data
 def read_redcap_report(api_url, api_key, report_id):
     """
     Reads a specific report from REDCap into a pandas DataFrame.
@@ -157,7 +143,7 @@ def read_redcap_report(api_url, api_key, report_id):
 
 
 ### Functions and Parameters
-@st.cache_resource
+@st.cache_data
 def load_data(path):
     df = pd.read_csv(path)
     # df = df[df['value'] >= 0.8 * df['target_hr_45']]
@@ -431,7 +417,6 @@ pdata_fitbit_file_id = get_file_id_from_name(drive_service,dfmetadata['fname'][d
 dfwo = get_data_from_preloaded(pdata_fitbit_file_id)
 # dfwo = load_data(pdata_fitbit_file)
 # dfwo = df[df['value'] >= df['target_hr_45']]
-# dfppt = get_rc_data('HIITVsEndurance-EvertonEnrollmentAnd_DATA_2023-10-21_2135.csv')
 dfppt = read_redcap_report(st.secrets['redcap']['api_url'],st.secrets['redcap']['api_key_curtis'],st.secrets['redcap']['ppt_meta_master_id'])
 
 dfppt = clean_ppt_df(dfppt)
