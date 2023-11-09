@@ -2,7 +2,7 @@
 # Imports
 import os
 import io
-from pathlib import Path
+# from pathlib import Path
 import streamlit as st
 st.write("import")
 st.write(f"root id: {st.secrets['gdrive_id_root']}")
@@ -16,16 +16,16 @@ from googleapiclient.http import MediaIoBaseDownload
 import requests
 
 # Environment
-pfileabs = Path(__file__).resolve()
-pchk = pfileabs
-chk = 0
-while not pchk.name == 'hiit-vs-mict' or chk >= 10:
-    pchk = pchk.parent
-    chk += 1
+# pfileabs = Path(__file__).resolve()
+# pchk = pfileabs
+# chk = 0
+# while not pchk.name == 'hiit-vs-mict' or chk >= 10:
+#     pchk = pchk.parent
+#     chk += 1
 
-proot = pchk.parent
-pdata = os.path.join(proot, 'data')
-pdata_myphd = os.path.join(pdata, 'myphd')
+# proot = pchk.parent
+# pdata = os.path.join(proot, 'data')
+# pdata_myphd = os.path.join(pdata, 'myphd')
 # pdata_fitbit = os.path.join(pdata_myphd,'_processed','sourcetype_device','WearableFitbit-Fitbit')
 # ptest = os.path.join(pdata_myphd,'_processed','sourcetype_device','WearableFitbit-Fitbit','006_qtz1b13893369732763681_hr_WearableFitbit_Fitbit.csv')
 
@@ -40,6 +40,7 @@ def setup_drive():
 
 # drive_service = setup_drive()
 # st.write(f'drive service {drive_service}')
+st.write("About to setup drive")
 try:
     drive_service = setup_drive()
     st.write(f'drive service {drive_service}')
@@ -72,17 +73,17 @@ def load_data_from_drive(drive_service, file_id):
     # df = df[df['value'] >= 0.8 * df['target_hr_45']]
     return df
 
-def load_data_from_drive_rc(drive_service, file_id):
-    request = drive_service.files().get_media(fileId=file_id)
-    io_buffer = io.BytesIO()
-    downloader = MediaIoBaseDownload(io_buffer, request)
-    done = False
-    while done is False:
-        status, done = downloader.next_chunk()
-    io_buffer.seek(0)
-    df = pd.read_csv(io_buffer)
-    # df = df[df['value'] >= 0.8 * df['target_hr_45']]
-    return df
+# def load_data_from_drive_rc(_drive_service, file_id):
+#     request = _drive_service.files().get_media(fileId=file_id)
+#     io_buffer = io.BytesIO()
+#     downloader = MediaIoBaseDownload(io_buffer, request)
+#     done = False
+#     while done is False:
+#         status, done = downloader.next_chunk()
+#     io_buffer.seek(0)
+#     df = pd.read_csv(io_buffer)
+#     # df = df[df['value'] >= 0.8 * df['target_hr_45']]
+#     return df
 
 st.write("About to fetch")
 @st.cache_resource
@@ -90,7 +91,7 @@ def preload_data_from_drive(_drive_service, parent_id):
     preloaded_data = {}
     
     # Get list of files in the specified folder
-    response = drive_service.files().list(corpora='drive', 
+    response = _drive_service.files().list(corpora='drive', 
                                           driveId=st.secrets["gdrive_id_root"],
                                           q=f"'{parent_id}' in parents",
                                           includeItemsFromAllDrives=True, 
@@ -101,7 +102,7 @@ def preload_data_from_drive(_drive_service, parent_id):
         if file.get('name').startswith("workout"):
             continue
         file_id = file['id']
-        df = load_data_from_drive(drive_service, file_id)
+        df = load_data_from_drive(_drive_service, file_id)
         preloaded_data[file_id] = df
     
     return preloaded_data
@@ -312,12 +313,12 @@ def parse_time(df, time_col):
 
     return df
 
-@st.cache_data
-def get_rc_data(fname):
-    fileid = get_file_id_from_name(drive_service,fname,st.secrets["gdrive_id_rc_keys"])
-    dfppt = load_data_from_drive_rc(drive_service,fileid)
-    dfppt = clean_ppt_df(dfppt)
-    return dfppt
+# @st.cache_data
+# def get_rc_data(fname):
+#     fileid = get_file_id_from_name(drive_service,fname,st.secrets["gdrive_id_rc_keys"])
+#     dfppt = load_data_from_drive_rc(drive_service,fileid)
+#     dfppt = clean_ppt_df(dfppt)
+#     return dfppt
 
 def clean_ppt_df(df):
     df['ppt_id'] = df['record_id'].apply(lambda x: f'{x:03}')
