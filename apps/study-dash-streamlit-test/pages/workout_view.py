@@ -32,19 +32,19 @@ drive_service = setup_drive()
 # except Exception as e:
 #     st.write(f'Failed to set up drive service: {e}')
 
-@st.cache_data 
-def get_file_id_from_name(_drive_service, filename, parent_id):
-    results = _drive_service.files().list(
-        corpora='drive',
-        driveId=st.secrets["gdrive_id_root"],
-        q=f"name='{filename}' and '{parent_id}' in parents",
-        includeItemsFromAllDrives=True,
-        supportsAllDrives=True
-    ).execute()
-    files = results.get('files', [])
-    if not files:
-        raise Exception(f"File {filename} not found!")
-    return files[0]['id']
+# @st.cache_data 
+# def get_file_id_from_name(_drive_service, filename, parent_id):
+#     results = _drive_service.files().list(
+#         corpora='drive',
+#         driveId=st.secrets["gdrive_id_root"],
+#         q=f"name='{filename}' and '{parent_id}' in parents",
+#         includeItemsFromAllDrives=True,
+#         supportsAllDrives=True
+#     ).execute()
+#     files = results.get('files', [])
+#     if not files:
+#         raise Exception(f"File {filename} not found!")
+#     return files[0]['id']
 
 @st.cache_data
 def get_file_ids_from_dir(parent_id):
