@@ -46,6 +46,29 @@ def get_file_id_from_name(_drive_service, filename, parent_id):
         raise Exception(f"File {filename} not found!")
     return files[0]['id']
 
+@st.cache_data
+def get_file_ids_from_dir(parent_id):
+    drive_service = setup_drive()
+    results = drive_service.files().list(
+        corpora='drive',
+        driveId=st.secrets["gdrive_id_root"],
+        q=f"'{parent_id}' in parents",
+        includeItemsFromAllDrives=True,
+        supportsAllDrives=True
+    ).execute()
+    files = results.get('files', [])
+    if not files:
+        raise Exception(f"Folder {parent_id} has no files!")
+    # id_name = [{x['name'] : x['id']} for x in files]
+    id_name = {}
+    for x in files:
+        id_name[x['name']] = x['id']
+    return id_name
+
+pworkout_fname_id = get_file_ids_from_dir(st.secrets['gdrive_id_workout'])
+# st.write(pworkout_fname_id["012_qtz1b17269433695528197_workout_allevents.csv"])
+
+
 def load_data_from_drive(_drive_service, file_id):
     request = _drive_service.files().get_media(fileId=file_id)
     io_buffer = io.BytesIO()
@@ -72,11 +95,12 @@ def load_data_from_drive(_drive_service, file_id):
 
 # st.write("About to fetch")
 @st.cache_data
-def preload_data_from_drive(_drive_service, parent_id):
+def preload_data_from_drive(parent_id):
+    drive_service = setup_drive()
     preloaded_data = {}
     
     # Get list of files in the specified folder
-    response = _drive_service.files().list(corpora='drive', 
+    response = drive_service.files().list(corpora='drive', 
                                           driveId=st.secrets["gdrive_id_root"],
                                           q=f"'{parent_id}' in parents",
                                           includeItemsFromAllDrives=True, 
@@ -86,13 +110,13 @@ def preload_data_from_drive(_drive_service, parent_id):
         if file.get('name').startswith("workout"):
             continue
         file_id = file['id']
-        df = load_data_from_drive(_drive_service, file_id)
+        df = load_data_from_drive(drive_service, file_id)
         preloaded_data[file_id] = df
     
     return preloaded_data
 
 # Use the preload function to load data
-preloaded_data = preload_data_from_drive(drive_service, st.secrets["gdrive_id_workout"])
+preloaded_data = preload_data_from_drive(st.secrets["gdrive_id_workout"])
 
 # @st.cache_data
 def get_data_from_preloaded(file_id):
@@ -250,7 +274,7 @@ def split_dataframe_by_time_gap(df, time_field='_time', gap=pd.Timedelta(minutes
         
     return dataframes
 
-@st.cache_data
+# @st.cache_data
 def split_dataframe_by_wk_wo(df):
     # Group by wk_id and wo_id and then create a list of dataframes
     grouped = df.groupby(['wk_id', 'wo_id'])
@@ -410,11 +434,12 @@ selected_ppt = st.selectbox(
 
 
 ### Load data
-pdata_fitbit_file_id = get_file_id_from_name(drive_service,dfmetadata['fname'][dfmetadata['ppt_id'] == selected_ppt].iloc[0],pworkout)
+# pdata_fitbit_file_id = get_file_id_from_name(drive_service,dfmetadata['fname'][dfmetadata['ppt_id'] == selected_ppt].iloc[0],pworkout)
 # pdata_fitbit_file = os.path.join(pdata_fitbit,dfmetadata['fname'][dfmetadata['ppt_id'] == selected_ppt].iloc[0])
 # st.write(f'pdata_fitbit: {pdata_fitbit_file_id}')
 # dfwo = get_data_from_preloaded(pdata_fitbit_file_id)
-dfwo = preloaded_data.get(pdata_fitbit_file_id)
+# dfwo = preloaded_data.get(pdata_fitbit_file_id)
+dfwo = preloaded_data.get(pworkout_fname_id[dfmetadata['fname'][dfmetadata['ppt_id'] == selected_ppt].iloc[0]])
 # dfwo = load_data(pdata_fitbit_file)
 # dfwo = df[df['value'] >= df['target_hr_45']]
 dfppt = read_redcap_report(st.secrets['redcap']['api_url'],st.secrets['redcap']['api_key_curtis'],st.secrets['redcap']['ppt_meta_master_id'])
