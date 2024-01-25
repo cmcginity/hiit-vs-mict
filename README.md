@@ -29,15 +29,12 @@ See the [Setup Guide](docs/setup_guide.md) to get started analyzing exercise dat
 │   └── experiments
 └── src
     ├── py
-    │   ├── lib_ml
-    │   ├── lib_timeseries
     │   ├── notebooks
     │   ├── scripts
     │   │   └── streamlit
     │   │       └── _bak_workout_view.py
     │   └── tests
     └── r
-        ├── lib_timeseries
         ├── notebooks
         ├── scripts
         └── tests
