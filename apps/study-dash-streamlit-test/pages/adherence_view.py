@@ -397,6 +397,25 @@ def rand_group(rgnum):
 cohort1 = '🏃‍♂️🚶‍♂️🧍‍♂️'
 cohort2 = '❤️🧡💙'
 
+def adh_score_mict(wk,group):
+    mict_dur = {
+        '1': 20,
+        '2': 20,
+        '3': 30,
+        '4': 30,
+        '5': 40,
+        '6': 40,
+        '7': 40,
+        '8': 40,
+        '9': 40,
+        '10': 40,
+        '11': 40,
+        '12': 40,
+        '13': 40,
+        '14': 40,
+        '15': 40
+    }
+    
 
 
 
@@ -405,7 +424,7 @@ cohort2 = '❤️🧡💙'
 
 ### ### ### ### ### ### Dashboard ### ### ### ### ### ###
 # st.title(f'🏃‍♂️ HIIT-vs-MICT Project 🏃‍♀️')
-st.markdown(f'# Workout View 🏃‍♂️🔬👩‍🔬')
+st.markdown(f'# Adherence Dashboard 🏃‍♂️🔬👩‍🔬')
 # st.markdown(f'path root: {proot}')
 # st.markdown(f'path pchk: {pchk}')
 # st.markdown(f'path myphd: {pdata_myphd}') 
@@ -432,84 +451,140 @@ selected_ppt = st.selectbox(
     ppt_list
 )
 
+dfadh = pd.DataFrame()
+
 
 ### Load data
-# pdata_fitbit_file_id = get_file_id_from_name(drive_service,dfmetadata['fname'][dfmetadata['ppt_id'] == selected_ppt].iloc[0],pworkout)
-# pdata_fitbit_file = os.path.join(pdata_fitbit,dfmetadata['fname'][dfmetadata['ppt_id'] == selected_ppt].iloc[0])
-# st.write(f'pdata_fitbit: {pdata_fitbit_file_id}')
-# dfwo = get_data_from_preloaded(pdata_fitbit_file_id)
-# dfwo = preloaded_data.get(pdata_fitbit_file_id)
-dfwo = preloaded_data.get(pworkout_fname_id[dfmetadata['fname'][dfmetadata['ppt_id'] == selected_ppt].iloc[0]])
+# dfwo = preloaded_data.get(pworkout_fname_id[dfmetadata['fname'][dfmetadata['ppt_id'] == selected_ppt].iloc[0]])
 # dfwo = load_data(pdata_fitbit_file)
 # dfwo = df[df['value'] >= df['target_hr_45']]
 dfppt = read_redcap_report(st.secrets['redcap']['api_url'],st.secrets['redcap']['api_key_curtis'],st.secrets['redcap']['ppt_meta_master_id'])
 
 dfppt = clean_ppt_df(dfppt)
+dfppt.drop('target_hr_35', axis=1, inplace=True)
 # st.write(dfppt.dtypes)
 # st.write(dfppt)
 # st.write(dfppt)
 
-### Merge data
-dfwo['_time'] = pd.to_datetime(dfwo['_time'], format="%Y-%m-%d %H:%M:%S.%f", errors='coerce')
-dfwo['_realtime'] = pd.to_datetime(dfwo['_realtime'], format="%Y-%m-%d %H:%M:%S.%f", errors='coerce')
-dfwo = parse_time(dfwo,'_realtime')
-dfwo = merge_rc(dfwo,dfppt)
-### Identify workouts
-# dfwos = split_dataframe_by_time_gap(dfwo,'_time',gap=pd.Timedelta(minutes=5))
-dfwos = split_dataframe_by_wk_wo(dfwo)
+# List of target heart rate columns to aggregate
+target_hr_columns = [col for col in dfppt.columns if col.startswith('target_hr_')]
 
-# ppt_id = dfwo["ppt_id"].apply(lambda x: f"{x:03}").iloc[0]
+ctr=0
+dftest = []
+for x in preloaded_data.values():
+    # st.write(x)
+    if ctr == 0:
+        dftest.append(x)
+    ctr+=1
+
+for dfwo in dftest:
+    ### Merge data
+    dfwo['_time'] = pd.to_datetime(dfwo['_time'], format="%Y-%m-%d %H:%M:%S.%f", errors='coerce')
+    dfwo['_realtime'] = pd.to_datetime(dfwo['_realtime'], format="%Y-%m-%d %H:%M:%S.%f", errors='coerce')
+    dfwo = parse_time(dfwo,'_realtime')
+    dfwo = merge_rc(dfwo,dfppt)
+    ### Identify workouts
+    dfwos = split_dataframe_by_wk_wo(dfwo)
+    # st.write(dfwos[22])
+    for dfselected in [dfwos[22]]:
+        dfselected['_realtime'] = pd.to_datetime(dfselected['_realtime'])
+        # Convert device column to lowercase
+        dfselected['device'] = dfselected['device'].str.lower()
+        st.write(dfselected)
+        pptid = dfselected['ppt_id'].iloc[0]
+        wkid = dfselected['wk_id'].iloc[0]
+        woid = dfselected['wo_id'].iloc[0]
+        thr45 = dfselected['target_hr_45'].iloc[0]
+        thr55 = dfselected['target_hr_55'].iloc[0]
+        thr70 = dfselected['target_hr_70'].iloc[0]
+        thr90 = dfselected['target_hr_90'].iloc[0]
+        ### Group by 5-second intervals and the device, then calculate the aggregations
+        result = (dfselected
+                .groupby([pd.Grouper(key='_realtime', freq='5S'), 'device'])
+                .agg(value_avg=('value', 'mean'),
+                    value_med=('value', 'median'),
+                    value_min=('value', 'min'),
+                    value_max=('value', 'max'),
+                    value_ct=('value', 'size'))
+                ).reset_index()
+        result = result.pivot(index='_realtime', columns='device').sort_index(axis=1,level=1)
+        # Flatten MultiIndex columns and create column names in {device}_{agg} format
+        result.columns = [f'{agg}_{device}' for agg, device in result.columns]
+        result.reset_index(inplace=True)  # Resetting the index after the pivot to make _realtime a column again
+        col_list = ['_realtime'] + [f'value_med_{col}' for col in dfselected['device'].unique()]
+        result = result[col_list]
+        result['target_hr_45'] = thr45
+        result['target_hr_55'] = thr55
+        result['target_hr_70'] = thr70
+        result['target_hr_90'] = thr90
+        result_plot = result
+        result['ppt_id'] = pptid
+        result['wk_id'] = wkid
+        result['wo_id'] = woid
+        # st.write('result1:')
+        st.write(result)
 
 
-st.markdown(f'## Participant: {selected_ppt}')
-col_ppt1, col_ppt2, col_ppt3 = st.columns(3)
+        # # Group by 5-second intervals and the device, then calculate the aggregations
+        # aggregations = {'value': ['mean', 'median', 'min', 'max', 'size']}
+        # # Add constant columns with 'first' aggregation to keep their names and values
+        # for col in target_hr_columns:
+        #     aggregations[col] = 'first'
+        # st.write(aggregations)
+        # result = (dfselected
+        #         .groupby([pd.Grouper(key='_realtime', freq='5S'), 'device'])
+        #         .agg(**aggregations)
+        #         ).reset_index()
 
-col_ppt1.metric(label='🏃‍♂️🏃‍♀️Workouts',value=len(dfwos),delta=None)
-col_ppt2.metric('🎟 Status',enrollment_status(dfwo['enrollment_status'].iloc[0]),None)
-col_ppt3.metric(label=f'{cohort1} Cohort',value=rand_group(dfwo['randomization_group'].iloc[0]),delta=None)
-# Slider to select the index
-if len(dfwos) <= 0:
-    st.markdown('## No qualifying workouts! 💩')
-    st.stop()
-selected_index = st.slider("Select Workout:", 0, len(dfwos) - 1)
-dfselected = dfwos[selected_index]
-dfselected['_realtime'] = pd.to_datetime(dfselected['_realtime'])
+        
+        # result = (dfselected
+        #         .groupby([pd.Grouper(key='_realtime', freq='5S'), 'device'])
+        #         .agg(value_avg=('value', 'mean'),
+        #             value_med=('value', 'median'),
+        #             value_min=('value', 'min'),
+        #             value_max=('value', 'max'),
+        #             value_ct=('value', 'size'),
+        #             target_hr_45=('target_hr_45','mean'),
+        #             target_hr_55=('target_hr_55','mean'),
+        #             target_hr_70=('target_hr_70','mean'),
+        #             target_hr_90=('target_hr_90','mean'))
+        #         ).reset_index()
+        # # After grouping, pivot the DataFrame
+        # result = result.pivot(index='_realtime', columns='device').sort_index(axis=1, level=1)
 
-# Convert device column to lowercase
-dfselected['device'] = dfselected['device'].str.lower()
+        # # Flatten MultiIndex columns and create column names in {device}_{agg} format
+        # new_columns = []
+        # for col_info in result.columns:
+        #     if isinstance(col_info, tuple) and len(col_info) > 1:
+        #         # Handling device-value columns
+        #         agg, device = col_info
+        #         new_columns.append(f'{agg}_{device}')
+        #     else:
+        #         # Handling constant columns
+        #         new_columns.append(col_info[0])
+        # result.columns = new_columns
 
-st_wo = dfselected['_realtime'].min()
-et_wo = dfselected['_realtime'].max()
-dur_wo = et_wo - st_wo
-dur_wo_min1 = round(dur_wo.total_seconds() / 60,1)
-dow_a = dfselected['dow_abbr'].iloc[0]
-
-hr_min = dfselected['value'].min()
-hr_max = dfselected['value'].max()
-
-
-col11, col12, col13 = st.columns(3)
-# col12.metric("⏰ Start", dfselected['_time'].min().strftime('%Y-%m-%d %H:%M:%S'), None)
-# col13.metric("End ⏰", dfselected['_time'].max().strftime('%Y-%m-%d %H:%M:%S'), None)
-
-col11.metric(f"📆 Weekday",f"{dow_a}",None)
-col12.metric(f"⏰ Start", f"{st_wo.strftime('%H:%M:%S')}")
-col13.metric(f"⏰ Stop", f"{et_wo.strftime('%H:%M:%S')}")
-# col12.markdown(f"⏰ Start: {st_wo.strftime('%Y-%m-%d %H:%M:%S')}")
-# col13.markdown(f"⏰ End: {et_wo.strftime('%Y-%m-%d %H:%M:%S')}")
-# col13.markdown(f":stopwatch: Duration: {dur_wo_min1} min")
+        # result.reset_index(inplace=True)  # Resetting the index after the pivot to make _realtime a column again
+        
+        # # consolidating columns
+        # for col in target_hr_columns:
+        #     colpolar = col + '_polar'
+        #     colfitbit = col + '_fitbit'
+        #     result[col] = result[colpolar]
+        #     result.drop(colpolar, axis=1, inplace=True)
+        #     result.drop(colfitbit, axis=1, inplace=True)
+        # # Selecting only median columns for devices and the target heart rate columns
+        # col_list = ['_realtime'] + [f'value_med_{col}' for col in dfselected['device'].unique()] + target_hr_columns
+        # result = result[col_list]
+        # # st.write('result2:')
+        # # st.write(result)
 
 
-col21, col22, col23= st.columns(3)
-col21.metric(f":stopwatch: Duration", f"{dur_wo_min1} min")
-col22.metric(':green_heart: $HR_{min}$(bpm)', f'{hr_min}', None)
-col23.metric('❤️‍🔥 $HR_{max}$(bpm)', hr_max, None)
 
-col31, col32, col33= st.columns(3)
-timescale = col31.selectbox(
-    "Timescale:",
-    ["1S","2S","5S","10S"]
-)
+
+
+
+
 
 ### Group by 5-second intervals and the device, then calculate the aggregations
 result = (dfselected
@@ -532,6 +607,7 @@ result['target_hr_70'] = dfppt[dfppt['ppt_id'] == int(selected_ppt)]['target_hr_
 result['target_hr_90'] = dfppt[dfppt['ppt_id'] == int(selected_ppt)]['target_hr_90'].iloc[0]
 # result.rename(columns={'value_med_fitbit': 'fitbit','value_med_polar': 'polar'}, inplace=True)
 
+# st.write(dfwos[1])
 
 ### Plotting
 def get_plot_fields(x):
@@ -549,6 +625,19 @@ def get_target_hr_list(x):
         return ['target_hr_45', 'target_hr_55']
     else:
         return None
+def wo_dur_mict(week):
+    if week <= 2:
+        return 20
+    elif week <= 4:
+        return 30
+    elif week > 4:
+        return 40
+
+def adh_mict_01(df):
+    total_time_buckets_5s = wo_dur_mict(df['wk']) * 60 / 5
+    auc_lb = total_time_buckets_5s * df['target_hr_70']
+    auc_ub = total_time_buckets_5s * df['target_hr_90']
+    df['adh_01'] = df['target_hr_70'] + df['target_hr_90']
 
 randgroup = dfppt[dfppt['ppt_id'] == int(selected_ppt)]['randomization_group'].iloc[0]
 plot_fields = get_plot_fields(dfwo['randomization_group'].iloc[0])

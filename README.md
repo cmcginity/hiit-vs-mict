@@ -8,8 +8,17 @@ See the [Setup Guide](docs/setup_guide.md) to get started analyzing exercise dat
 ├── .gitignore
 ├── LICENSE
 ├── README.md
+├── apps
+│   ├── Dockerfile
+│   ├── study-dash
+│   │   └── study_dash_app.ipynb
+│   └── study-dash-streamlit-test
+│       ├── pages
+│       │   ├── adherence_view.py
+│       │   └── workout_view.py
+│       ├── requirements.txt
+│       └── study_overview.py
 ├── config
-│   └── .env
 ├── docs
 │   ├── README.md
 │   ├── analysis_overview.md
@@ -20,13 +29,12 @@ See the [Setup Guide](docs/setup_guide.md) to get started analyzing exercise dat
 │   └── experiments
 └── src
     ├── py
-    │   ├── lib_ml
-    │   ├── lib_timeseries
     │   ├── notebooks
     │   ├── scripts
+    │   │   └── streamlit
+    │   │       └── _bak_workout_view.py
     │   └── tests
     └── r
-        ├── lib_timeseries
         ├── notebooks
         ├── scripts
         └── tests
