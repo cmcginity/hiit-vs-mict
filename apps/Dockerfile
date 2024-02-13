@@ -28,5 +28,7 @@ RUN find /usr/local/lib/python3.10/site-packages/streamlit -type f \( -iname \*.
 
 # Command to run the main Streamlit app
 # CMD ["streamlit", "run", "--server.port=$PORT", "--server.address=0.0.0.0", "study-dash-streamlit-test/study_overview.py"]
-CMD streamlit run --server.port=$PORT --browser.serverAddress=0.0.0.0 --server.enableCORS=False --server.enableXsrfProtection False study-dash-streamlit-test/study_overview.py
+# CMD streamlit run --server.port=$PORT --browser.serverAddress=0.0.0.0 --server.enableCORS=False --server.enableXsrfProtection False study-dash-streamlit-test/study_overview.py
+CMD ["sh", "-c", "streamlit run --server.port=${PORT} --browser.serverAddress=0.0.0.0 --server.enableCORS=False --server.enableXsrfProtection False study-dash-streamlit-test/study_overview.py"]
+
 # ENTRYPOINT ["streamlit", "run", "study-dash-streamlit-test/study_overview.py", "--server.port=8501", "--server.address=0.0.0.0"]
