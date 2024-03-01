@@ -1,11 +1,10 @@
 ### Imports and environment
 # Imports
-import os
+# import os
 import io
 import streamlit as st
-# st.write(f"root id: {st.secrets['gdrive_id_root']}")
 import pandas as pd
-import numpy as np
+# import numpy as np
 import matplotlib.pyplot as plt
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
@@ -25,26 +24,6 @@ def setup_drive():
     return service
 
 drive_service = setup_drive()
-# st.write("About to setup drive")
-# try:
-#     drive_service = setup_drive()
-#     st.write(f'drive service {drive_service}')
-# except Exception as e:
-#     st.write(f'Failed to set up drive service: {e}')
-
-# @st.cache_data 
-# def get_file_id_from_name(_drive_service, filename, parent_id):
-#     results = _drive_service.files().list(
-#         corpora='drive',
-#         driveId=st.secrets["gdrive_id_root"],
-#         q=f"name='{filename}' and '{parent_id}' in parents",
-#         includeItemsFromAllDrives=True,
-#         supportsAllDrives=True
-#     ).execute()
-#     files = results.get('files', [])
-#     if not files:
-#         raise Exception(f"File {filename} not found!")
-#     return files[0]['id']
 
 @st.cache_data
 def get_file_ids_from_dir(parent_id):
@@ -81,17 +60,6 @@ def load_data_from_drive(_drive_service, file_id):
     # df = df[df['value'] >= 0.8 * df['target_hr_45']]
     return df
 
-# def load_data_from_drive_rc(_drive_service, file_id):
-#     request = _drive_service.files().get_media(fileId=file_id)
-#     io_buffer = io.BytesIO()
-#     downloader = MediaIoBaseDownload(io_buffer, request)
-#     done = False
-#     while done is False:
-#         status, done = downloader.next_chunk()
-#     io_buffer.seek(0)
-#     df = pd.read_csv(io_buffer)
-#     # df = df[df['value'] >= 0.8 * df['target_hr_45']]
-#     return df
 
 # st.write("About to fetch")
 @st.cache_data
@@ -162,8 +130,6 @@ def read_redcap_report(api_url, api_key, report_id):
         st.error("Error parsing REDCap response as CSV")
         return None
 
-# xxx = read_redcap_report(st.secrets['redcap']['api_url'],st.secrets['redcap']['api_key_curtis'],st.secrets['redcap']['ppt_meta_master_id'])
-
 
 ### Functions and Parameters
 @st.cache_data
@@ -193,7 +159,7 @@ def get_dfmetadata(_drive_service, folder_id=None):
         
         for file in response.get('files', []):
             fname = file.get('name')
-            if fname.startswith("0"):
+            if not fname.startswith("q"): #fname.startswith("0"): # todo: this will be a breaking error soon!!!
                 meta = fname.split("_")
                 metadata = {
                     'ppt_id': meta[0],
@@ -210,33 +176,7 @@ def get_dfmetadata(_drive_service, folder_id=None):
 
     dfmetadata = pd.DataFrame(dfmetadata_list)
     return dfmetadata
-# def get_dfmetadata(path_to_data):
-#     dfmetadata_list = []
-#     # dfmetadata = pd.DataFrame(columns=['ppt_id', 'myphd_id', 'datatype', 'sourcetype', 'device', 'fname'])
-#     # st.write(f'dfmetadata {dfmetadata}')
-#     # st.write(f'pandas {pd.__version__}')
-#     # st.write(f'streamlit {st.__version__}')
-#     for subdir, dirs, files in os.walk(pdata_fitbit):
-#         for f in files:
-#             if f.startswith("0"):
-#                 meta = f.split("_")
 
-#                 # fpath = os.path.join(subdir, f)
-#                 # df = pd.read_csv(fpath)
-#                 # df = df[df['value'] >= df['target_hr_45']]
-
-#                 metadata = {
-#                     'ppt_id': meta[0],
-#                     'myphd_id': meta[1],
-#                     'datatype': meta[2],
-#                     'sourcetype': meta[3],
-#                     'device': meta[4],
-#                     'fname': f
-#                     # 'df': df
-#                 }
-#                 dfmetadata_list.append(metadata)
-#     dfmetadata = pd.DataFrame(dfmetadata_list)
-#     return dfmetadata
 
 @st.cache_data
 def split_dataframe_by_time_gap(df, time_field='_time', gap=pd.Timedelta(minutes=5)):
@@ -322,12 +262,6 @@ def parse_time(df, time_col):
 
     return df
 
-# @st.cache_data
-# def get_rc_data(fname):
-#     fileid = get_file_id_from_name(drive_service,fname,st.secrets["gdrive_id_rc_keys"])
-#     dfppt = load_data_from_drive_rc(drive_service,fileid)
-#     dfppt = clean_ppt_df(dfppt)
-#     return dfppt
 
 def clean_ppt_df(df):
     df['ppt_id'] = df['record_id'].apply(lambda x: f'{x:03}')
@@ -406,26 +340,11 @@ cohort2 = '❤️🧡💙'
 ### ### ### ### ### ### Dashboard ### ### ### ### ### ###
 # st.title(f'🏃‍♂️ HIIT-vs-MICT Project 🏃‍♀️')
 st.markdown(f'# Workout View 🏃‍♂️🔬👩‍🔬')
-# st.markdown(f'path root: {proot}')
-# st.markdown(f'path pchk: {pchk}')
-# st.markdown(f'path myphd: {pdata_myphd}') 
-# st.markdown(f'path file absolute: {pfileabs}') 
-# st.write('Here\'s some text and stuff:')
 
 ### Load metadata
 pworkout = st.secrets["gdrive_id_workout"]
-# qstring = f"'{pworkout}' in parents"
-# fitbitfiles = drive_service.files().list(corpora='drive', 
-#                                       driveId=st.secrets["gdrive_id_root"],
-#                                       q=qstring,
-#                                       includeItemsFromAllDrives=True, 
-#                                       supportsAllDrives=True).execute().get('files',[])
-# st.write(f'q string: {qstring}')
-# st.write(f'drive service: {fitbitfiles}')
-# st.write(f'secret: {pworkout}')
 dfmetadata = get_dfmetadata(drive_service, pworkout)
-# dfmetadata = get_dfmetadata(pdata_fitbit)
-# print(dfmetadata)
+
 ppt_list = dfmetadata['ppt_id'].sort_values()
 selected_ppt = st.selectbox(
     'Select a participant to review.',
@@ -434,11 +353,6 @@ selected_ppt = st.selectbox(
 
 
 ### Load data
-# pdata_fitbit_file_id = get_file_id_from_name(drive_service,dfmetadata['fname'][dfmetadata['ppt_id'] == selected_ppt].iloc[0],pworkout)
-# pdata_fitbit_file = os.path.join(pdata_fitbit,dfmetadata['fname'][dfmetadata['ppt_id'] == selected_ppt].iloc[0])
-# st.write(f'pdata_fitbit: {pdata_fitbit_file_id}')
-# dfwo = get_data_from_preloaded(pdata_fitbit_file_id)
-# dfwo = preloaded_data.get(pdata_fitbit_file_id)
 dfwo = preloaded_data.get(pworkout_fname_id[dfmetadata['fname'][dfmetadata['ppt_id'] == selected_ppt].iloc[0]])
 # dfwo = load_data(pdata_fitbit_file)
 # dfwo = df[df['value'] >= df['target_hr_45']]
@@ -522,8 +436,27 @@ result = (dfselected
           ).reset_index()
 result = result.pivot(index='_realtime', columns='device').sort_index(axis=1,level=1)
 # Flatten MultiIndex columns and create column names in {device}_{agg} format
+# result.columns = [f'{agg}_{device}' for agg, device in result.columns]
+### test:
+# dfselected.set_index('_realtime', inplace=True)
+
+# # Define a custom aggregation function to apply after resampling and grouping by 'device'
+# def custom_aggregations(x):
+#     return pd.Series({
+#         'value_avg': x['value'].mean(),
+#         'value_med': x['value'].median(),
+#         'value_min': x['value'].min(),
+#         'value_max': x['value'].max(),
+#         'value_ct': x['value'].size
+#     })
+
+# # Resample and then group by 'device' to apply the custom aggregations
+# result = dfselected.groupby('device').resample(timescale).apply(custom_aggregations).unstack(level=0)
+### end test
+# Rename columns to match the desired format {device}_{agg}
 result.columns = [f'{agg}_{device}' for agg, device in result.columns]
 result.reset_index(inplace=True)  # Resetting the index after the pivot to make _realtime a column again
+
 col_list = ['_realtime'] + [f'value_med_{col}' for col in dfselected['device'].unique()]
 result = result[col_list]
 result['target_hr_45'] = dfppt[dfppt['ppt_id'] == int(selected_ppt)]['target_hr_45'].iloc[0]
@@ -553,7 +486,6 @@ def get_target_hr_list(x):
 randgroup = dfppt[dfppt['ppt_id'] == int(selected_ppt)]['randomization_group'].iloc[0]
 plot_fields = get_plot_fields(dfwo['randomization_group'].iloc[0])
 ylist = col_list[1:]+get_target_hr_list(randgroup)
-
 st.line_chart(result,
               x=col_list[0],
               y=ylist,
@@ -565,6 +497,7 @@ st.line_chart(result,
             #   color=['#007BFF', '#FFA500', '#FF4136'])
             #   ["95e1d3","519872","fce38a","f38181","035e7b"]
 
+# st.write(dfselected)
 dfselectedgps = dfselected.groupby(['ppt_id', 'wk_id', 'wo_id', 'device', pd.Grouper(key='_realtime', freq='5S')]).agg({'value': 'median','target_hr_70': 'max','target_hr_90': 'max'})
 # plt.figure(figsize=(12, 6))
 dev_color = {
@@ -600,3 +533,8 @@ for dev in devices:
 
 st.pyplot(fig)
 st.write(dfselected.head(100))
+
+scorecols = ['_realtime','value_med_polar'] + get_target_hr_list(randgroup)
+dfpl = result[scorecols]
+# def workout_kpis(df):
+#     df['deviation_01'] = 

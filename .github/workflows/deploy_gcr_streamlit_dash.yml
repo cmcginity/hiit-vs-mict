@@ -22,7 +22,7 @@ jobs:
         export_default_credentials: true
 
     - name: Authenticate Docker with GCR
-      run: |
+      run: |  
         echo "Authenticating Docker with GCR..."
         gcloud auth configure-docker
 
