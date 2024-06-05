@@ -1,0 +1,101 @@
+---
+title: "wearables"
+author: "Aubrey Roberts"
+date: "2024-05-09"
+output: html_document
+---
+
+# Fitbit Data Analysis
+```{r setup, include=FALSE}
+# load packages
+library(tidyverse)
+library(ggplot2)
+library(lubridate)
+
+# case study w/ ppt 6
+redcap_wkts<-read.csv("/Users/aubreykr/Google Drive/Shared drives/HIIT and Endurance Study/Data/data/Redcap/Raw_Data/64208_WorkoutDates_Raw.csv")
+
+long_wkts<-gather(key="workout", value="date", c(workout_1, workout_2, workout_3), data=redcap_wkts)
+
+long_wkts<-long_wkts %>% 
+  filter(record_id == 6) %>% 
+  select(record_id, date)
+
+redcapwkts<-unique(long_wkts$date)
+
+demog_processed <- read.csv("/Users/aubreykr/Google Drive/Shared drives/HIIT and Endurance Study/Data/data/Redcap/Processed_Data/64208_Demographics_Processed.csv")
+
+ppt6_demog<-demog_processed %>% 
+  filter(record_id == 6)
+
+ppt6_demog$Group
+ppt6_demog$bl_heart_rate_hiit
+ppt6_demog$bl_heart_rate_mict
+
+# load wearable data + redcap workout time stamps
+ppt6<-read.csv("/Users/aubreykr/Google Drive/Shared drives/HIIT and Endurance Study/Data/data/myphd/_processed/hr/WearableFitbit-Fitbit/006_qtz1b13893369732763681_hr_WearableFitbit_Fitbit.csv")
+
+paste0("Number unique days with wearable data:", sep=" ", length(unique(ppt6$start_date)))
+paste0("Device:", sep=" ", unique(ppt6$device))
+
+```
+
+# Look at Fitbit data for a single participant
+```{r fitbits, echo=FALSE, message=FALSE, warning=FALSE}
+
+ppt6<-fortify(ppt6)
+# Convert fitbit data to real date
+ppt6$X_realtimetest <- as.POSIXct(ppt6$X_realtime, format = "%Y-%m-%d %H:%M:%S",  tz = "UTC")
+ppt6$real_date<-as.Date(ppt6$X_realtimetest)
+
+# Convert REDCap data to simpler format
+long_wkts$date <- as.POSIXct(long_wkts$date, format = "%Y-%m-%d %H:%M:%S", tz="UTC")
+long_wkts$date <- as.Date(long_wkts$date)
+
+# Get unique dates
+redcap<-unique(long_wkts$date)
+
+test<-unique(long_wkts$date)
+unique(ppt6$real_date)
+
+# w apply
+# Create the plots using lapply
+plots <- lapply(redcap, function(x) { # apply function to each element of redcap
+  df <- ppt6 %>%
+    filter(real_date == x & value > 125)
+  
+  p <- ggplot(df, aes(x = start_time, y = value)) +
+    geom_point() +
+    labs(title = paste("Plot for Date:", x),
+         x = "Start Time",
+         y = "Value") +geom_hline(yintercept = 147, linetype = "dashed", color = "red") +
+    theme_bw()
+})
+
+# Display the plots
+lapply(plots, print)
+```
+
+# Control participant
+
+```{r pressure, echo=FALSE, message=FALSE, warning=FALSE}
+
+# Load participant data
+ppt101<-read.csv("/Users/aubreykr/Google Drive/Shared drives/HIIT and Endurance Study/Data/data/myphd/_processed/hr/WearableFitbit-Fitbit/101_qtz1b11266425116974769_hr_WearableFitbit_Fitbit.csv")
+
+
+# Convert fitbit data to real date
+ppt101$X_realtimetest <- as.POSIXct(ppt101$X_realtime, format = "%Y-%m-%d %H:%M:%S",  tz = "UTC")
+ppt101$real_date<-as.Date(ppt101$X_realtimetest)
+
+unique(ppt101$real_date)
+
+
+
+
+
+
+
+```
+
+
