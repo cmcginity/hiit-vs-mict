@@ -1,183 +1,26 @@
 ### Imports and environment
 # Imports
 # import os
-import io
+# import io
 import streamlit as st
 import pandas as pd
 # import numpy as np
 import matplotlib.pyplot as plt
-from google.oauth2.service_account import Credentials
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
-from googleapiclient.http import MediaIoBaseDownload
-import requests
+# from google.oauth2.service_account import Credentials
+# from googleapiclient.discovery import build
+# from googleapiclient.errors import HttpError
+# from googleapiclient.http import MediaIoBaseDownload
+# import requests
+import custom_utility.api_data_utils as apihelper
 
 
 
-# Google Drive API Initialization
-@st.cache_resource
-def setup_drive():
-    SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
-
-    creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=SCOPES)
-    service = build('drive', 'v3', credentials=creds)
-    return service
-
-drive_service = setup_drive()
-
-@st.cache_data
-def get_file_ids_from_dir(parent_id):
-    drive_service = setup_drive()
-    results = drive_service.files().list(
-        corpora='drive',
-        driveId=st.secrets["gdrive_id_root"],
-        q=f"'{parent_id}' in parents",
-        includeItemsFromAllDrives=True,
-        supportsAllDrives=True
-    ).execute()
-    files = results.get('files', [])
-    if not files:
-        raise Exception(f"Folder {parent_id} has no files!")
-    # id_name = [{x['name'] : x['id']} for x in files]
-    id_name = {}
-    for x in files:
-        id_name[x['name']] = x['id']
-    return id_name
-
-pworkout_fname_id = get_file_ids_from_dir(st.secrets['gdrive_id_workout'])
-# st.write(pworkout_fname_id["012_qtz1b17269433695528197_workout_allevents.csv"])
-
-
-def load_data_from_drive(_drive_service, file_id):
-    request = _drive_service.files().get_media(fileId=file_id)
-    io_buffer = io.BytesIO()
-    downloader = MediaIoBaseDownload(io_buffer, request)
-    done = False
-    while done is False:
-        status, done = downloader.next_chunk()
-    io_buffer.seek(0)
-    df = pd.read_csv(io_buffer, parse_dates=['_realtime','_time'])
-    # df = df[df['value'] >= 0.8 * df['target_hr_45']]
-    return df
-
-
-# st.write("About to fetch")
-@st.cache_data
-def preload_data_from_drive(parent_id):
-    drive_service = setup_drive()
-    preloaded_data = {}
-    
-    # Get list of files in the specified folder
-    response = drive_service.files().list(corpora='drive', 
-                                          driveId=st.secrets["gdrive_id_root"],
-                                          q=f"'{parent_id}' in parents",
-                                          includeItemsFromAllDrives=True, 
-                                          supportsAllDrives=True).execute()
-    # Iterate over each file and load its data
-    for file in response.get('files', []):
-        if file.get('name').startswith("workout"):
-            continue
-        file_id = file['id']
-        df = load_data_from_drive(drive_service, file_id)
-        preloaded_data[file_id] = df
-    
-    return preloaded_data
-
-# Use the preload function to load data
-preloaded_data = preload_data_from_drive(st.secrets["gdrive_id_workout"])
 
 # @st.cache_data
 def get_data_from_preloaded(file_id):
     return preloaded_data.get(file_id)
 
-### REDCap data extraction
-@st.cache_data
-def read_redcap_report(api_url, api_key, report_id):
-    """
-    Reads a specific report from REDCap into a pandas DataFrame.
-
-    :param api_url: URL to the REDCap API endpoint.
-    :param api_key: API key for authentication.
-    :param report_id: ID of the report to be fetched.
-    :return: DataFrame containing the report data or None if an error occurs.
-    """
-
-    # Define the payload for the REDCap API request
-    data = {
-        'token': api_key,
-        'content': 'report',
-        'format': 'csv',
-        'report_id': report_id,
-        'rawOrLabel': 'raw',
-        'rawOrLabelHeaders': 'raw',
-        'exportCheckboxLabel': 'false',
-        'returnFormat': 'csv'
-    }
-
-    # Make the POST request to the REDCap API
-    response = requests.post(api_url, data=data)
-
-    # Check if the request was successful
-    if response.status_code != 200:
-        st.error(f"Error fetching data from REDCap: {response.text}")
-        return None
-
-    # Convert the CSV response to a pandas DataFrame
-    try:
-        df = pd.read_csv(io.StringIO(response.text))
-        return df
-    except pd.errors.ParserError:
-        st.error("Error parsing REDCap response as CSV")
-        return None
-
-
 ### Functions and Parameters
-@st.cache_data
-def load_data(path):
-    df = pd.read_csv(path)
-    # df = df[df['value'] >= 0.8 * df['target_hr_45']]
-    return df
-
-@st.cache_data
-def get_dfmetadata(_drive_service, folder_id=None):
-    pworkout = st.secrets["gdrive_id_workout"]
-    dfmetadata_list = []
-
-    try:
-        # If folder_id is provided, list files from that folder. Otherwise, list from entire Drive.
-        if folder_id:
-            response = drive_service.files().list(corpora='drive', 
-                                                driveId=st.secrets["gdrive_id_root"],
-                                                q=f"'{pworkout}' in parents",
-                                                includeItemsFromAllDrives=True, 
-                                                supportsAllDrives=True).execute()
-        else:
-            response = drive_service.files().list(corpora='drive', 
-                                                driveId=st.secrets["gdrive_id_root"],
-                                                includeItemsFromAllDrives=True, 
-                                                supportsAllDrives=True).execute()
-        
-        for file in response.get('files', []):
-            fname = file.get('name')
-            if not fname.startswith("q"): #fname.startswith("0"): # todo: this will be a breaking error soon!!!
-                meta = fname.split("_")
-                metadata = {
-                    'ppt_id': meta[0],
-                    'myphd_id': meta[1],
-                    # 'datatype': meta[2],
-                    # 'sourcetype': meta[3],
-                    # 'device': meta[4],
-                    'fname': fname
-                }
-                dfmetadata_list.append(metadata)
-                
-    except HttpError as error:
-        print(f"An error occurred: {error}")
-
-    dfmetadata = pd.DataFrame(dfmetadata_list)
-    return dfmetadata
-
-
 @st.cache_data
 def split_dataframe_by_time_gap(df, time_field='_time', gap=pd.Timedelta(minutes=5)):
     """
@@ -332,8 +175,22 @@ cohort1 = '🏃‍♂️🚶‍♂️🧍‍♂️'
 cohort2 = '❤️🧡💙'
 
 
+### Initialize APIs and load data
+# Google Drive API Initialization
+drive_service = apihelper.setup_drive()
+pworkout_fname_id = apihelper.get_file_ids_from_dir(st.secrets['gdrive_id_workout'])
+# st.write(pworkout_fname_id["012_qtz1b17269433695528197_workout_allevents.csv"])
 
+# Use the preload function to load data
+preloaded_data = apihelper.preload_data_from_drive(st.secrets["gdrive_id_workout"])
 
+# Load metadata
+pworkout = st.secrets["gdrive_id_workout"]
+dfmetadata = apihelper.get_dfmetadata(drive_service, pworkout)
+
+# Load PPT data
+dfppt = apihelper.read_redcap_report(st.secrets['redcap']['api_url'],st.secrets['redcap']['api_key_curtis'],st.secrets['redcap']['ppt_meta_master_id'])
+dfppt = clean_ppt_df(dfppt)
 
 
 
@@ -341,27 +198,15 @@ cohort2 = '❤️🧡💙'
 # st.title(f'🏃‍♂️ HIIT-vs-MICT Project 🏃‍♀️')
 st.markdown(f'# Adherence View 🏃‍♂️🔬👩‍🔬')
 
-### Load metadata
-pworkout = st.secrets["gdrive_id_workout"]
-dfmetadata = get_dfmetadata(drive_service, pworkout)
-
+### Select a PPT
 ppt_list = dfmetadata['ppt_id'].sort_values()
 selected_ppt = st.selectbox(
     'Select a participant to review.',
     ppt_list
 )
 
-
-### Load data
+### Load PPT workout data
 dfwo = preloaded_data.get(pworkout_fname_id[dfmetadata['fname'][dfmetadata['ppt_id'] == selected_ppt].iloc[0]])
-# dfwo = load_data(pdata_fitbit_file)
-# dfwo = df[df['value'] >= df['target_hr_45']]
-dfppt = read_redcap_report(st.secrets['redcap']['api_url'],st.secrets['redcap']['api_key_curtis'],st.secrets['redcap']['ppt_meta_master_id'])
-
-dfppt = clean_ppt_df(dfppt)
-# st.write(dfppt.dtypes)
-# st.write(dfppt)
-# st.write(dfppt)
 
 ### Merge data
 dfwo['_time'] = pd.to_datetime(dfwo['_time'], format="%Y-%m-%d %H:%M:%S.%f", errors='coerce')
@@ -371,9 +216,11 @@ dfwo = merge_rc(dfwo,dfppt)
 ### Identify workouts
 # dfwos = split_dataframe_by_time_gap(dfwo,'_time',gap=pd.Timedelta(minutes=5))
 dfwos = split_dataframe_by_wk_wo(dfwo)
-
-
+### 
 # ppt_id = dfwo["ppt_id"].apply(lambda x: f"{x:03}").iloc[0]
+
+
+
 
 
 st.markdown(f'## Participant: {selected_ppt}')
@@ -441,6 +288,7 @@ dfselected['_realtime'] = pd.to_datetime(dfselected['_realtime'])
 # Convert device column to lowercase
 dfselected['device'] = dfselected['device'].str.lower()
 
+# Extract KPIs for presentation
 st_wo = dfselected['_realtime'].min()
 et_wo = dfselected['_realtime'].max()
 dur_wo = et_wo - st_wo
@@ -452,16 +300,9 @@ hr_max = dfselected['value'].max()
 
 
 col11, col12, col13 = st.columns(3)
-# col12.metric("⏰ Start", dfselected['_time'].min().strftime('%Y-%m-%d %H:%M:%S'), None)
-# col13.metric("End ⏰", dfselected['_time'].max().strftime('%Y-%m-%d %H:%M:%S'), None)
-
 col11.metric(f"📆 Weekday",f"{dow_a}",None)
 col12.metric(f"⏰ Start", f"{st_wo.strftime('%H:%M:%S')}")
 col13.metric(f"⏰ Stop", f"{et_wo.strftime('%H:%M:%S')}")
-# col12.markdown(f"⏰ Start: {st_wo.strftime('%Y-%m-%d %H:%M:%S')}")
-# col13.markdown(f"⏰ End: {et_wo.strftime('%Y-%m-%d %H:%M:%S')}")
-# col13.markdown(f":stopwatch: Duration: {dur_wo_min1} min")
-
 
 col21, col22, col23= st.columns(3)
 col21.metric(f":stopwatch: Duration", f"{dur_wo_min1} min")
@@ -484,24 +325,7 @@ result = (dfselected
                value_ct=('value', 'size'))
           ).reset_index()
 result = result.pivot(index='_realtime', columns='device').sort_index(axis=1,level=1)
-# Flatten MultiIndex columns and create column names in {device}_{agg} format
-# result.columns = [f'{agg}_{device}' for agg, device in result.columns]
-### test:
-# dfselected.set_index('_realtime', inplace=True)
 
-# # Define a custom aggregation function to apply after resampling and grouping by 'device'
-# def custom_aggregations(x):
-#     return pd.Series({
-#         'value_avg': x['value'].mean(),
-#         'value_med': x['value'].median(),
-#         'value_min': x['value'].min(),
-#         'value_max': x['value'].max(),
-#         'value_ct': x['value'].size
-#     })
-
-# # Resample and then group by 'device' to apply the custom aggregations
-# result = dfselected.groupby('device').resample(timescale).apply(custom_aggregations).unstack(level=0)
-### end test
 # Rename columns to match the desired format {device}_{agg}
 result.columns = [f'{agg}_{device}' for agg, device in result.columns]
 result.reset_index(inplace=True)  # Resetting the index after the pivot to make _realtime a column again
